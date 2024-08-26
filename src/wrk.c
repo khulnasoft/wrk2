@@ -21,7 +21,6 @@ static struct config {
     bool     u_latency;
     bool     dynamic;
     bool     record_all_responses;
-    bool     no_script_response_body;
     char    *host;
     char    *script;
     SSL_CTX *ctx;
@@ -58,10 +57,6 @@ static void usage() {
            "    -t, --threads     <N>  Number of threads to use   \n"
            "                                                      \n"
            "    -s, --script      <S>  Load Lua script file       \n"
-           "    -N, --lua-dont-pass-body \n"
-           "                           Do not pass HTTP body to LUA script\n"
-           "                           (improves performance with large\n"
-           "                            response bodies)\n"
            "    -H, --header      <H>  Add header to request      \n"
            "    -L  --latency          Print latency statistics   \n"
            "    -U  --u_latency        Print uncorrected latency statistics\n"
@@ -97,7 +92,7 @@ int main(int argc, char **argv) {
 
     if (!strncmp("https", schema, 5)) {
         if ((cfg.ctx = ssl_init()) == NULL) {
-            fprintf(stderr, "unable to initialize SSL\n");
+            //f//printf(stderr, "unable to initialize SSL\n");
             ERR_print_errors_fp(stderr);
             exit(1);
         }
@@ -123,19 +118,20 @@ int main(int argc, char **argv) {
     lua_State *L = script_create(cfg.script, url, headers);
     if (!script_resolve(L, host, service)) {
         char *msg = strerror(errno);
-        fprintf(stderr, "unable to connect to %s:%s %s\n", host, service, msg);
+        //f//printf(stderr, "unable to connect to %s:%s %s\n", host, service, msg);
         exit(1);
     }
     
     uint64_t connections = cfg.connections / cfg.threads;
     double throughput    = (double)cfg.rate / cfg.threads;
+    uint64_t stop_at     = time_us() + (cfg.duration * 1000000);
 
-    uint64_t thread_init = time_us();
     for (uint64_t i = 0; i < cfg.threads; i++) {
         thread *t = &threads[i];
         t->loop        = aeCreateEventLoop(10 + cfg.connections * 3);
         t->connections = connections;
         t->throughput = throughput;
+        t->stop_at     = stop_at;
         t->reconnect_all = NULL;
 
         t->L = script_create(cfg.script, url, headers);
@@ -150,17 +146,10 @@ int main(int argc, char **argv) {
                 parser_settings.on_body         = response_body;
             }
         }
-    }
 
-    printf("Initialised %d threads in %d ms.\n",
-                            cfg.threads, (time_us() - thread_init) / 1000);
-    uint64_t stop_at     = time_us() + (cfg.duration * 1000000);
-    for (uint64_t i = 0; i < cfg.threads; i++) {
-        thread *t = &threads[i];
-        t->stop_at = stop_at;
         if (!t->loop || pthread_create(&t->thread, NULL, &thread_main, t)) {
             char *msg = strerror(errno);
-            fprintf(stderr, "unable to create thread %"PRIu64": %s\n", i, msg);
+            //f//printf(stderr, "unable to create thread %"PRIu64": %s\n", i, msg);
             exit(2);
         }
     }
@@ -173,9 +162,9 @@ int main(int argc, char **argv) {
     sigaction(SIGINT, &sa, NULL);
 
     char *time = format_time_s(cfg.duration);
-    printf("Running %s test @ %s\n", time, url);
-    printf("  %"PRIu64" threads and %"PRIu64" connections\n",
-            cfg.threads, cfg.connections);
+    //printf("Running %s test @ %s\n", time, url);
+    //printf("  %"PRIu64" threads and %"PRIu64" connections\n",
+       //     cfg.threads, cfg.connections);
 
     uint64_t start    = time_us();
     uint64_t complete = 0;
@@ -207,10 +196,6 @@ int main(int argc, char **argv) {
 
         hdr_add(latency_histogram, t->latency_histogram);
         hdr_add(u_latency_histogram, t->u_latency_histogram);
-
-        if (script_has_teardown(t->L)) {
-            script_teardown(t->L);
-        }
     }
 
     long double runtime_s   = runtime_us / 1000000.0;
@@ -222,39 +207,39 @@ int main(int argc, char **argv) {
     latency_stats->max = hdr_max(latency_histogram);
     latency_stats->histogram = latency_histogram;
 
-    print_stats_header();
-    print_stats("Latency", latency_stats, format_time_us);
-    print_stats("Req/Sec", statistics.requests, format_metric);
+ //   print_stats_header();
+  //  print_stats("Latency", latency_stats, format_time_us);
+  //  print_stats("Req/Sec", statistics.requests, format_metric);
 //    if (cfg.latency) print_stats_latency(latency_stats);
 
     if (cfg.latency) {
-        print_hdr_latency(latency_histogram,
-                "Recorded Latency");
-        printf("----------------------------------------------------------\n");
+        // print_hdr_latency(latency_histogram,
+        //         "Recorded Latency");
+        ////printf("----------------------------------------------------------\n");
     }
 
     if (cfg.u_latency) {
-        printf("\n");
-        print_hdr_latency(u_latency_histogram,
-                "Uncorrected Latency (measured without taking delayed starts into account)");
-        printf("----------------------------------------------------------\n");
+        // //printf("\n");
+        // print_hdr_latency(u_latency_histogram,
+        //         "Uncorrected Latency (measured without taking delayed starts into account)");
+        // //printf("----------------------------------------------------------\n");
     }
 
     char *runtime_msg = format_time_us(runtime_us);
 
-    printf("  %"PRIu64" requests in %s, %sB read\n",
-            complete, runtime_msg, format_binary(bytes));
+    // //printf("  %"PRIu64" requests in %s, %sB read\n",
+    //         complete, runtime_msg, format_binary(bytes));
     if (errors.connect || errors.read || errors.write || errors.timeout) {
-        printf("  Socket errors: connect %d, read %d, write %d, timeout %d\n",
-               errors.connect, errors.read, errors.write, errors.timeout);
+        //printf("  Socket errors: connect %d, read %d, write %d, timeout %d\n",
+           //    errors.connect, errors.read, errors.write, errors.timeout);
     }
 
     if (errors.status) {
-        printf("  Non-2xx or 3xx responses: %d\n", errors.status);
+        // //printf("  Non-2xx or 3xx responses: %d\n", errors.status);
     }
 
-    printf("Requests/sec: %9.2Lf\n", req_per_s);
-    printf("Transfer/sec: %10sB\n", format_binary(bytes_per_s));
+    // //printf("Requests/sec: %9.2Lf\n", req_per_s);
+    // //printf("Transfer/sec: %10sB\n", format_binary(bytes_per_s));
 
     if (script_has_done(L)) {
         script_summary(L, runtime_us, complete, bytes);
@@ -387,9 +372,9 @@ static int calibrate(aeEventLoop *loop, long long id, void *data) {
     thread->interval = interval;
     thread->requests = 0;
 
-    printf("  Thread calibration: mean lat.: %.3fms, rate sampling interval: %dms\n",
-            (thread->mean)/1000.0,
-            thread->interval);
+    //printf("  Thread calibration: mean lat.: %.3fms, rate sampling interval: %dms\n",
+            // (thread->mean)/1000.0,
+            // thread->interval);
 
     aeCreateTimeEvent(loop, thread->interval, sample_rate, thread, NULL);
 
@@ -453,8 +438,6 @@ static int header_value(http_parser *parser, const char *at, size_t len) {
 }
 
 static int response_body(http_parser *parser, const char *at, size_t len) {
-    if (cfg.no_script_response_body)
-        return 0;
     connection *c = parser->data;
     buffer_append(&c->body, at, len);
     return 0;
@@ -551,25 +534,25 @@ static int response_complete(http_parser *parser) {
     int64_t expected_latency_timing = now - expected_latency_start;
 
     if (expected_latency_timing < 0) {
-        printf("\n\n ---------- \n\n");
-        printf("We are about to crash and die (recoridng a negative #)");
-        printf("This wil never ever ever happen...");
-        printf("But when it does. The following information will help in debugging");
-        printf("response_complete:\n");
-        printf("  expected_latency_timing = %lld\n", expected_latency_timing);
-        printf("  now = %lld\n", now);
-        printf("  expected_latency_start = %lld\n", expected_latency_start);
-        printf("  c->thread_start = %lld\n", c->thread_start);
-        printf("  c->complete = %lld\n", c->complete);
-        printf("  throughput = %g\n", c->throughput);
-        printf("  latest_should_send_time = %lld\n", c->latest_should_send_time);
-        printf("  latest_expected_start = %lld\n", c->latest_expected_start);
-        printf("  latest_connect = %lld\n", c->latest_connect);
-        printf("  latest_write = %lld\n", c->latest_write);
+        //printf("\n\n ---------- \n\n");
+        //printf("We are about to crash and die (recoridng a negative #)");
+        //printf("This wil never ever ever happen...");
+        //printf("But when it does. The following information will help in debugging");
+        //printf("response_complete:\n");
+        //printf("  expected_latency_timing = %lld\n", expected_latency_timing);
+        //printf("  now = %lld\n", now);
+        //printf("  expected_latency_start = %lld\n", expected_latency_start);
+        //printf("  c->thread_start = %lld\n", c->thread_start);
+        //printf("  c->complete = %lld\n", c->complete);
+        //printf("  throughput = %g\n", c->throughput);
+        //printf("  latest_should_send_time = %lld\n", c->latest_should_send_time);
+        //printf("  latest_expected_start = %lld\n", c->latest_expected_start);
+        //printf("  latest_connect = %lld\n", c->latest_connect);
+        //printf("  latest_write = %lld\n", c->latest_write);
 
         expected_latency_start = c->thread_start +
                 ((c->complete ) / c->throughput);
-        printf("  next expected_latency_start = %lld\n", expected_latency_start);
+        //printf("  next expected_latency_start = %lld\n", expected_latency_start);
     }
 
     c->latest_should_send_time = 0;
@@ -731,13 +714,12 @@ static struct option longopts[] = {
     { "threads",        required_argument, NULL, 't' },
     { "script",         required_argument, NULL, 's' },
     { "header",         required_argument, NULL, 'H' },
-    { "latency",             no_argument,  NULL, 'L' },
-    { "u_latency",           no_argument,  NULL, 'U' },
-    { "batch_latency",       no_argument,  NULL, 'B' },
-    { "lua-dont-pass-body",  no_argument,  NULL, 'N' },
+    { "latency",        no_argument,       NULL, 'L' },
+    { "u_latency",      no_argument,       NULL, 'U' },
+    { "batch_latency",  no_argument,       NULL, 'B' },
     { "timeout",        required_argument, NULL, 'T' },
-    { "help",                no_argument,  NULL, 'h' },
-    { "version",             no_argument,  NULL, 'v' },
+    { "help",           no_argument,       NULL, 'h' },
+    { "version",        no_argument,       NULL, 'v' },
     { "rate",           required_argument, NULL, 'R' },
     { NULL,             0,                 NULL,  0  }
 };
@@ -752,9 +734,8 @@ static int parse_args(struct config *cfg, char **url, struct http_parser_url *pa
     cfg->timeout     = SOCKET_TIMEOUT_MS;
     cfg->rate        = 0;
     cfg->record_all_responses = true;
-    cfg->no_script_response_body = false;
 
-    while ((c = getopt_long(argc, argv, "t:c:d:s:H:T:R:LUBNrv?", longopts, NULL)) != -1) {
+    while ((c = getopt_long(argc, argv, "t:c:d:s:H:T:R:LUBrv?", longopts, NULL)) != -1) {
         switch (c) {
             case 't':
                 if (scan_metric(optarg, &cfg->threads)) return -1;
@@ -777,9 +758,6 @@ static int parse_args(struct config *cfg, char **url, struct http_parser_url *pa
             case 'B':
                 cfg->record_all_responses = false;
                 break;
-            case 'N':
-                cfg->no_script_response_body = true;
-                break;
             case 'U':
                 cfg->latency = true;
                 cfg->u_latency = true;
@@ -792,8 +770,8 @@ static int parse_args(struct config *cfg, char **url, struct http_parser_url *pa
                 if (scan_metric(optarg, &cfg->rate)) return -1;
                 break;
             case 'v':
-                printf("wrk %s [%s] ", VERSION, aeGetApiName());
-                printf("Copyright (C) 2012 Will Glozer\n");
+                //printf("wrk %s [%s] ", VERSION, aeGetApiName());
+                //printf("Copyright (C) 2012 Will Glozer\n");
                 break;
             case 'h':
             case '?':
@@ -806,18 +784,18 @@ static int parse_args(struct config *cfg, char **url, struct http_parser_url *pa
     if (optind == argc || !cfg->threads || !cfg->duration) return -1;
 
     if (!script_parse_url(argv[optind], parts)) {
-        fprintf(stderr, "invalid URL: %s\n", argv[optind]);
+        //f//printf(stderr, "invalid URL: %s\n", argv[optind]);
         return -1;
     }
 
     if (!cfg->connections || cfg->connections < cfg->threads) {
-        fprintf(stderr, "number of connections must be >= threads\n");
+        //f//printf(stderr, "number of connections must be >= threads\n");
         return -1;
     }
 
     if (cfg->rate == 0) {
-        fprintf(stderr,
-                "Throughput MUST be specified with the --rate or -R option\n");
+        //f//printf(stderr,
+           //     "Throughput MUST be specified with the --rate or -R option\n");
         return -1;
     }
 
@@ -828,7 +806,7 @@ static int parse_args(struct config *cfg, char **url, struct http_parser_url *pa
 }
 
 static void print_stats_header() {
-    printf("  Thread Stats%6s%11s%8s%12s\n", "Avg", "Stdev", "Max", "+/- Stdev");
+    //printf("  Thread Stats%6s%11s%8s%12s\n", "Avg", "Stdev", "Max", "+/- Stdev");
 }
 
 static void print_units(long double n, char *(*fmt)(long double), int width) {
@@ -839,7 +817,7 @@ static void print_units(long double n, char *(*fmt)(long double), int width) {
     if (isalpha(msg[len-2])) pad--;
     width -= pad;
 
-    printf("%*.*s%.*s", width, width, msg, pad, "  ");
+    //printf("%*.*s%.*s", width, width, msg, pad, "  ");
 
     free(msg);
 }
@@ -849,35 +827,35 @@ static void print_stats(char *name, stats *stats, char *(*fmt)(long double)) {
     long double mean  = stats_summarize(stats);
     long double stdev = stats_stdev(stats, mean);
 
-    printf("    %-10s", name);
+    //printf("    %-10s", name);
     print_units(mean,  fmt, 8);
     print_units(stdev, fmt, 10);
     print_units(max,   fmt, 9);
-    printf("%8.2Lf%%\n", stats_within_stdev(stats, mean, stdev, 1));
+    //printf("%8.2Lf%%\n", stats_within_stdev(stats, mean, stdev, 1));
 }
 
 static void print_hdr_latency(struct hdr_histogram* histogram, const char* description) {
     long double percentiles[] = { 50.0, 75.0, 90.0, 99.0, 99.9, 99.99, 99.999, 100.0};
-    printf("  Latency Distribution (HdrHistogram - %s)\n", description);
+    //printf("  Latency Distribution (HdrHistogram - %s)\n", description);
     for (size_t i = 0; i < sizeof(percentiles) / sizeof(long double); i++) {
         long double p = percentiles[i];
         int64_t n = hdr_value_at_percentile(histogram, p);
-        printf("%7.3Lf%%", p);
+        //printf("%7.3Lf%%", p);
         print_units(n, format_time_us, 10);
-        printf("\n");
+        //printf("\n");
     }
-    printf("\n%s\n", "  Detailed Percentile spectrum:");
+    //printf("\n%s\n", "  Detailed Percentile spectrum:");
     hdr_percentiles_print(histogram, stdout, 5, 1000.0, CLASSIC);
 }
 
 static void print_stats_latency(stats *stats) {
     long double percentiles[] = { 50.0, 75.0, 90.0, 99.0, 99.9, 99.99, 99.999, 100.0 };
-    printf("  Latency Distribution\n");
+    //printf("  Latency Distribution\n");
     for (size_t i = 0; i < sizeof(percentiles) / sizeof(long double); i++) {
         long double p = percentiles[i];
         uint64_t n = stats_percentile(stats, p);
-        printf("%7.3Lf%%", p);
+        //printf("%7.3Lf%%", p);
         print_units(n, format_time_us, 10);
-        printf("\n");
+        //printf("\n");
     }
 }

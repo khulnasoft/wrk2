@@ -7,9 +7,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <math.h>
-#ifdef __x86_64__
 #include <x86intrin.h>
-#endif
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
@@ -352,6 +350,7 @@ int64_t hdr_value_at_percentile(struct hdr_histogram* h, double percentile)
         if (total >= count_at_percentile)
         {
             int64_t value_from_index = iter.value_from_index;
+            printf("\"Count\": %lld,\n",count_at_percentile);
             return highest_equivalent_value(h, value_from_index);
         }
     }

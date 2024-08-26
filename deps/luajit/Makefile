@@ -10,14 +10,13 @@
 # For MSVC, please follow the instructions given in src/msvcbuild.bat.
 # For MinGW and Cygwin, cd to src and run make with the Makefile there.
 #
-# Copyright (C) 2005-2017 Mike Pall. See Copyright Notice in luajit.h
+# Copyright (C) 2005-2014 Mike Pall. See Copyright Notice in luajit.h
 ##############################################################################
 
 MAJVER=  2
-MINVER=  1
-RELVER=  0
-PREREL=  -beta3
-VERSION= $(MAJVER).$(MINVER).$(RELVER)$(PREREL)
+MINVER=  0
+RELVER=  3
+VERSION= $(MAJVER).$(MINVER).$(RELVER)
 ABIVER=  5.1
 
 ##############################################################################
@@ -47,18 +46,17 @@ INSTALL_PKGCONFIG= $(INSTALL_LIB)/pkgconfig
 INSTALL_TNAME= luajit-$(VERSION)
 INSTALL_TSYMNAME= luajit
 INSTALL_ANAME= libluajit-$(ABIVER).a
-INSTALL_SOSHORT1= libluajit-$(ABIVER).so
-INSTALL_SOSHORT2= libluajit-$(ABIVER).so.$(MAJVER)
-INSTALL_SONAME= $(INSTALL_SOSHORT2).$(MINVER).$(RELVER)
+INSTALL_SONAME= libluajit-$(ABIVER).so.$(MAJVER).$(MINVER).$(RELVER)
+INSTALL_SOSHORT= libluajit-$(ABIVER).so
+INSTALL_DYLIBNAME= libluajit-$(ABIVER).$(MAJVER).$(MINVER).$(RELVER).dylib
 INSTALL_DYLIBSHORT1= libluajit-$(ABIVER).dylib
 INSTALL_DYLIBSHORT2= libluajit-$(ABIVER).$(MAJVER).dylib
-INSTALL_DYLIBNAME= libluajit-$(ABIVER).$(MAJVER).$(MINVER).$(RELVER).dylib
 INSTALL_PCNAME= luajit.pc
 
 INSTALL_STATIC= $(INSTALL_LIB)/$(INSTALL_ANAME)
 INSTALL_DYN= $(INSTALL_LIB)/$(INSTALL_SONAME)
-INSTALL_SHORT1= $(INSTALL_LIB)/$(INSTALL_SOSHORT1)
-INSTALL_SHORT2= $(INSTALL_LIB)/$(INSTALL_SOSHORT2)
+INSTALL_SHORT1= $(INSTALL_LIB)/$(INSTALL_SOSHORT)
+INSTALL_SHORT2= $(INSTALL_LIB)/$(INSTALL_SOSHORT)
 INSTALL_T= $(INSTALL_BIN)/$(INSTALL_TNAME)
 INSTALL_TSYM= $(INSTALL_BIN)/$(INSTALL_TSYMNAME)
 INSTALL_PC= $(INSTALL_PKGCONFIG)/$(INSTALL_PCNAME)
@@ -85,23 +83,16 @@ FILE_SO= libluajit.so
 FILE_MAN= luajit.1
 FILE_PC= luajit.pc
 FILES_INC= lua.h lualib.h lauxlib.h luaconf.h lua.hpp luajit.h
-FILES_JITLIB= bc.lua bcsave.lua dump.lua p.lua v.lua zone.lua \
-	      dis_x86.lua dis_x64.lua dis_arm.lua dis_arm64.lua \
-	      dis_arm64be.lua dis_ppc.lua dis_mips.lua dis_mipsel.lua \
-	      dis_mips64.lua dis_mips64el.lua vmdef.lua
+FILES_JITLIB= bc.lua v.lua dump.lua dis_x86.lua dis_x64.lua dis_arm.lua \
+	      dis_ppc.lua dis_mips.lua dis_mipsel.lua bcsave.lua vmdef.lua
 
 ifeq (,$(findstring Windows,$(OS)))
-  HOST_SYS:= $(shell uname -s)
-else
-  HOST_SYS= Windows
-endif
-TARGET_SYS?= $(HOST_SYS)
-
-ifeq (Darwin,$(TARGET_SYS))
-  INSTALL_SONAME= $(INSTALL_DYLIBNAME)
-  INSTALL_SOSHORT1= $(INSTALL_DYLIBSHORT1)
-  INSTALL_SOSHORT2= $(INSTALL_DYLIBSHORT2)
-  LDCONFIG= :
+  ifeq (Darwin,$(shell uname -s))
+    INSTALL_SONAME= $(INSTALL_DYLIBNAME)
+    INSTALL_SHORT1= $(INSTALL_LIB)/$(INSTALL_DYLIBSHORT1)
+    INSTALL_SHORT2= $(INSTALL_LIB)/$(INSTALL_DYLIBSHORT2)
+    LDCONFIG= :
+  endif
 endif
 
 ##############################################################################
@@ -118,7 +109,7 @@ install: $(INSTALL_DEP)
 	$(MKDIR) $(INSTALL_DIRS)
 	cd src && $(INSTALL_X) $(FILE_T) $(INSTALL_T)
 	cd src && test -f $(FILE_A) && $(INSTALL_F) $(FILE_A) $(INSTALL_STATIC) || :
-	$(RM) $(INSTALL_DYN) $(INSTALL_SHORT1) $(INSTALL_SHORT2)
+	$(RM) $(INSTALL_TSYM) $(INSTALL_DYN) $(INSTALL_SHORT1) $(INSTALL_SHORT2)
 	cd src && test -f $(FILE_SO) && \
 	  $(INSTALL_X) $(FILE_SO) $(INSTALL_DYN) && \
 	  $(LDCONFIG) $(INSTALL_LIB) && \
@@ -130,18 +121,12 @@ install: $(INSTALL_DEP)
 	  $(RM) $(FILE_PC).tmp
 	cd src && $(INSTALL_F) $(FILES_INC) $(INSTALL_INC)
 	cd src/jit && $(INSTALL_F) $(FILES_JITLIB) $(INSTALL_JITLIB)
+	$(SYMLINK) $(INSTALL_TNAME) $(INSTALL_TSYM)
 	@echo "==== Successfully installed LuaJIT $(VERSION) to $(PREFIX) ===="
-	@echo ""
-	@echo "Note: the development releases deliberately do NOT install a symlink for luajit"
-	@echo "You can do this now by running this command (with sudo):"
-	@echo ""
-	@echo "  $(SYMLINK) $(INSTALL_TNAME) $(INSTALL_TSYM)"
-	@echo ""
-
 
 uninstall:
 	@echo "==== Uninstalling LuaJIT $(VERSION) from $(PREFIX) ===="
-	$(UNINSTALL) $(INSTALL_T) $(INSTALL_STATIC) $(INSTALL_DYN) $(INSTALL_SHORT1) $(INSTALL_SHORT2) $(INSTALL_MAN)/$(FILE_MAN) $(INSTALL_PC)
+	$(UNINSTALL) $(INSTALL_TSYM) $(INSTALL_T) $(INSTALL_STATIC) $(INSTALL_DYN) $(INSTALL_SHORT1) $(INSTALL_SHORT2) $(INSTALL_MAN)/$(FILE_MAN) $(INSTALL_PC)
 	for file in $(FILES_JITLIB); do \
 	  $(UNINSTALL) $(INSTALL_JITLIB)/$$file; \
 	  done

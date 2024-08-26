@@ -27,19 +27,19 @@ static void set_fields(lua_State *, int, const table_field *);
 static void set_field(lua_State *, int, char *, int);
 static int push_url_part(lua_State *, char *, struct http_parser_url *, enum http_parser_url_fields);
 
-static const struct luaL_Reg addrlib[] = {
+static const struct luaL_reg addrlib[] = {
     { "__tostring", script_addr_tostring   },
     { "__gc"    ,   script_addr_gc         },
     { NULL,         NULL                   }
 };
 
-static const struct luaL_Reg statslib[] = {
+static const struct luaL_reg statslib[] = {
     { "__index",    script_stats_get       },
     { "__len",      script_stats_len       },
     { NULL,         NULL                   }
 };
 
-static const struct luaL_Reg threadlib[] = {
+static const struct luaL_reg threadlib[] = {
     { "__index",    script_thread_index    },
     { "__newindex", script_thread_newindex },
     { NULL,         NULL                   }
@@ -194,10 +194,6 @@ bool script_has_done(lua_State *L) {
     return script_is_function(L, "done");
 }
 
-bool script_has_teardown(lua_State *L) {
-    return script_is_function(L, "teardown");
-}
-
 void script_header_done(lua_State *L, luaL_Buffer *buffer) {
     luaL_pushresult(buffer);
 }
@@ -232,11 +228,6 @@ void script_errors(lua_State *L, errors *errors) {
     lua_newtable(L);
     set_fields(L, 2, fields);
     lua_setfield(L, 1, "errors");
-}
-
-void script_teardown(lua_State *L) {
-    lua_getglobal(L, "teardown");
-    lua_call(L, 0, 0);
 }
 
 void script_done(lua_State *L, stats *latency, stats *requests) {
@@ -513,12 +504,6 @@ void script_copy_value(lua_State *src, lua_State *dst, int index) {
                 lua_pop(src, 1);
             }
             lua_pop(src, 1);
-            break;
-        case LUA_TUSERDATA:
-            {
-                struct addrinfo *src_addr = checkaddr(src);
-                script_addr_clone(dst, src_addr);
-            }
             break;
         default:
             luaL_error(src, "cannot transfer '%s' to thread", luaL_typename(src, index));
